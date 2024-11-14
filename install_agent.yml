@@ -1,5 +1,5 @@
 - name: Install Zabbix Agent on Windows
-  hosts: ansible_test
+  hosts: all
   vars:
     zabbix_agent_name: "Zabbix Agent2"
     zabbix_agent_config_path: 'C:\\Program Files\\Zabbix Agent 2\\zabbix_agent2.conf'
