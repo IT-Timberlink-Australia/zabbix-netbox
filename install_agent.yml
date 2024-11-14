@@ -1,0 +1,62 @@
+- name: Install Zabbix Agent on Windows
+  hosts: ansible_test
+  vars:
+    zabbix_agent_name: "Zabbix Agent2"
+    zabbix_agent_config_path: 'C:\\Program Files\\Zabbix Agent 2\\zabbix_agent2.conf'
+    zabbix_agent_download_url: "https://cdn.zabbix.com/zabbix/binaries/stable/7.0/7.0.5/zabbix_agent2-7.0.5-windows-amd64-openssl.msi"
+    zabbix_agent_temp_path: 'C:\\Temp\\zabbix_agent.msi'
+    zabbix_agent_temp_folder: 'C:\\Temp'
+    zabbix_agent_install_folder: 'C:\\Program Files\\Zabbix Agent 2'
+    zabbix_agent_log_path: 'C:\\Temp\\zabbix_agent_install_log.txt'
+    zabbix_server_ip: "10.21.10.92"
+
+  tasks:
+    - name: Ensure Temp directory exists
+      win_file:
+        path: "{{ zabbix_agent_temp_folder }}"
+        state: directory
+
+    - name: Check if Zabbix Agent is installed
+      win_shell: |
+        Get-WmiObject -Class Win32_Product | Where-Object { $_.Name -like "*{{ zabbix_agent_name }}*" }
+      register: zabbix_check
+
+    - name: Set fact if Zabbix Agent is installed
+      set_fact:
+        zabbix_installed: "{{ zabbix_check.stdout_lines | length > 0 }}"
+
+    - name: Uninstall existing Zabbix Agent if installed
+      win_shell: |
+        $zabbix = Get-WmiObject -Class Win32_Product | Where-Object { $_.Name -like "*{{ zabbix_agent_name }}*" }
+        if ($zabbix) {
+          $zabbix.Uninstall()
+        }
+      when: zabbix_installed
+
+    - name: Remove old Zabbix configuration file if it exists
+      win_file:
+        path: "{{ zabbix_agent_config_path }}"
+        state: absent
+      when: zabbix_installed
+
+    - name: Download Zabbix Agent MSI
+      win_get_url:
+        url: "{{ zabbix_agent_download_url }}"
+        dest: "{{ zabbix_agent_temp_path }}"
+
+    - name: Create installation log directory
+      win_file:
+        path: "{{ zabbix_agent_install_folder }}"
+        state: directory
+
+    - name: Install Zabbix Agent
+      win_package:
+        path: "{{ zabbix_agent_temp_path }}"
+        arguments: /qn SERVER={{ zabbix_server_ip }} HOSTNAME={{ ansible_hostname }} INSTALLFOLDER="{{ zabbix_agent_install_folder }}"
+        log_path: "{{ zabbix_agent_log_path }}"
+
+    - name: Start Zabbix Agent service
+      win_service:
+        name: "{{ zabbix_agent_name }}"
+        start_mode: auto
+        state: started
